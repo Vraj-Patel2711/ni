@@ -1,0 +1,204 @@
+<html>
+<head>
+  <title>Nutritional Insights</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    html, body { 
+      height: 100%; 
+      margin: 0; 
+      display: flex; 
+      flex-direction: column; 
+      background-color: #f5f6fa; 
+    }
+    .container { flex: 1; }
+    .card { border-radius: 10px; padding: 1rem; height: 280px; }
+    .card h6 { font-weight: 600; }
+    .card p { font-size: 13px; color: gray; margin-bottom: 10px; }
+    #pieChart { max-height: 180px; }
+    footer { background: #007bff; color: white; text-align: center; padding: 10px 0; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h5">Nutritional Insights</span>
+  </div>
+</nav>
+
+<div class="container mt-4">
+  <h5 class="mb-3">Explore Nutritional Insights</h5>
+
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Bar Chart</h6>
+        <p>Average macronutrient content by diet type.</p>
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Scatter Plot</h6>
+        <p>Nutrient relationships (protein vs carbs).</p>
+        <canvas id="scatterChart"></canvas>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Heatmap</h6>
+        <p>Nutrient correlations.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Pie Chart</h6>
+        <p>Recipe distribution by diet type.</p>
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters (Search + Dropdown side by side) -->
+  <div class="mt-4 d-flex align-items-center">
+    <input id="dietFilter" class="form-control me-2 w-25" placeholder="Search by Diet Type">
+    <select id="dietSelect" class="form-select w-25">
+      <option>All Diet Types</option>
+      <option>Keto</option>
+      <option>Vegan</option>
+    </select>
+  </div>
+
+  <!-- Buttons -->
+  <div class="mt-4">
+    <h6>API Data Interaction</h6>
+    <button id="insightsBtn" class="btn btn-primary me-2">Get Nutritional Insights</button>
+    <button id="recipesBtn" class="btn btn-success me-2">Get Recipes</button>
+    <button id="clustersBtn" class="btn text-white" style="background:#6f42c1;">Get Clusters</button>
+  </div>
+
+</div>
+
+<footer>
+  © 2025 Nutritional Insights. All Rights Reserved.
+</footer>
+
+<script>
+let barChart, pieChart, scatterChart;
+
+// ===== MOCK DATA =====
+const sampleBarData = [
+  { Diet_type: "Keto", "Protein(g)": 30, "Carbs(g)": 10, "Fat(g)": 25 },
+  { Diet_type: "Vegan", "Protein(g)": 20, "Carbs(g)": 40, "Fat(g)": 15 }
+];
+
+const samplePieData = {
+  labels: ["Keto", "Vegan"],
+  values: [10, 20]
+};
+
+const sampleScatterData = [
+  { x: 30, y: 10, diet: "Keto" },
+  { x: 20, y: 40, diet: "Vegan" }
+];
+
+// ===== HELPER TO FILTER DATA =====
+function getSelectedDiet() {
+  return document.getElementById("dietSelect").value;
+}
+
+function getSearchText() {
+  return document.getElementById("dietFilter").value.trim().toLowerCase();
+}
+
+function filterBarData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  return data.filter(d => 
+    (diet === "All Diet Types" || d.Diet_type === diet) &&
+    (search === "" || d.Diet_type.toLowerCase().includes(search))
+  );
+}
+
+function filterPieData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  let filteredLabels = [];
+  let filteredValues = [];
+  
+  data.labels.forEach((label, idx) => {
+    if ((diet === "All Diet Types" || label === diet) &&
+        (search === "" || label.toLowerCase().includes(search))) {
+      filteredLabels.push(label);
+      filteredValues.push(data.values[idx]);
+    }
+  });
+  return { labels: filteredLabels, values: filteredValues };
+}
+
+function filterScatterData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  return data.filter(d =>
+    (diet === "All Diet Types" || d.diet === diet) &&
+    (search === "" || d.diet.toLowerCase().includes(search))
+  );
+}
+
+// ===== CHART RENDER FUNCTIONS =====
+function renderBar(data) {
+  const ctx = document.getElementById("barChart");
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.map(d => d.Diet_type),
+      datasets: [
+        { label: "Protein", data: data.map(d => d["Protein(g)"]), backgroundColor: "#007bff" },
+        { label: "Carbs", data: data.map(d => d["Carbs(g)"]), backgroundColor: "#28a745" },
+        { label: "Fat", data: data.map(d => d["Fat(g)"]), backgroundColor: "#ffc107" }
+      ]
+    },
+    options: { responsive: true }
+  });
+}
+
+function renderPie(data) {
+  const ctx = document.getElementById("pieChart");
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: data.labels,
+      datasets: [{ data: data.values, backgroundColor: ["#007bff","#28a745","#ffc107","#6f42c1"] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+
+function renderScatter(data) {
+  const ctx = document.getElementById("scatterChart");
+  if (scatterChart) scatterChart.destroy();
+  scatterChart = new Chart(ctx, {
+    type: "scatter",
+    data: { datasets: [{ label: "Clusters", data: data, backgroundColor: "#6f42c1" }] },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: "Protein" } },
+        y: { title: { display: true, text: "Carbs" } }
+      }
+    }
+  });
+}
+
+// ===== BUTTON FUNCTIONS =====
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("insightsBtn").addEventListener("click", () => renderBar(filterBarData(sampleBarData)));
+  document.getElementById("recipesBtn").addEventListener("click", () => renderPie(filterPieData(samplePieData)));
+  document.getElementById("clustersBtn").addEventListener("click", () => renderScatter(filterScatterData(sampleScatterData)));
+});
+</script>
+</body>
+</html>
