@@ -1,0 +1,5 @@
+azure-functions
+pandas
+azure-storage-blob
+redis
+azure-data-tables

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nutritional Insights</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    html, body { 
+      height: 100%; 
+      margin: 0; 
+      display: flex; 
+      flex-direction: column; 
+      background-color: #f5f6fa; 
+    }
+    .container { flex: 1; }
+    .card { border-radius: 10px; padding: 1rem; height: 280px; }
+    .card h6 { font-weight: 600; }
+    .card p { font-size: 13px; color: gray; margin-bottom: 10px; }
+    #pieChart { max-height: 180px; }
+    #successMsg { display: none; color: green; font-weight: bold; margin-bottom: 10px; }
+    .btn.active { background-color: #007bff; color: white; }
+    footer { background: #007bff; color: white; text-align: center; padding: 10px 0; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary">
+  <div class="container-fluid">
+   <span class="navbar-brand mb-0 h5">Nutritional Insights</span>
+   <div class="text-white">
+     <span id="username"></span>
+     <button onclick="logout()" class="btn btn-sm btn-light ms-2">Logout</button>
+   </div>
+  </div>
+</nav>
+
+<div id="loginPage" class="container mt-4">
+  <h4>Login / Register</h4>
+  <div id="successMsg">Registration Successful! You can now login.</div>
+  <input type="text" id="usernameInput" class="form-control w-25 mb-2" placeholder="Enter your name">
+  <input type="email" id="emailInput" class="form-control w-25 mb-2" placeholder="Enter email">
+  <div class="input-group w-25 mb-2">
+    <input type="password" id="passwordInput" class="form-control" placeholder="Enter password">
+    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword()">SHOW</button>
+  </div>
+  <button class="btn btn-primary me-2" onclick="login()">Login</button>
+  <button class="btn btn-success" onclick="register()">Register</button>
+</div> 
+
+<div id="dashboard" class="container mt-4" style="display:none;">
+  <h5 class="mb-3">Explore Nutritional Insights</h5>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Bar Chart</h6>
+        <p>Average macronutrient content by diet type.</p>
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Scatter Plot</h6>
+        <p>Nutrient relationships (protein vs carbs).</p>
+        <canvas id="scatterChart"></canvas>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Heatmap</h6>
+        <p>Nutrient correlations.</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm">
+        <h6>Pie Chart</h6>
+        <p>Recipe distribution by diet type.</p>
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex align-items-center">
+    <input id="dietFilter" class="form-control me-2 w-25" placeholder="Search by Diet Type">
+    <select id="dietSelect" class="form-select w-25">
+      <option>All Diet Types</option>
+      <option>Keto</option>
+      <option>Vegan</option>
+    </select>
+  </div>
+
+  <p id="resultCount" class="mt-2 text-muted"></p>
+
+  <div class="mt-4">
+    <h6>API Data Interaction</h6>
+    <button id="insightsBtn" class="btn btn-primary me-2">Get Nutritional Insights</button>
+    <button id="recipesBtn" class="btn btn-success me-2">Get Recipes</button>
+    <button id="clustersBtn" class="btn text-white" style="background:#6f42c1;">Get Clusters</button>
+  </div>
+
+  <div class="mt-3 d-flex align-items-center gap-2">
+    <button class="btn btn-secondary btn-sm" onclick="prevPage()">Previous</button>
+    <div id="pageNumbers" class="d-flex gap-2"></div>
+    <button class="btn btn-secondary btn-sm" onclick="nextPage()">Next</button>
+  </div>
+</div>
+
+<footer>
+  © 2025 Nutritional Insights. All Rights Reserved.
+</footer>
+
+<script>
+let currentPage = 1;
+let barChart, pieChart, scatterChart;
+
+//Load registered user from localStorage
+let registeredUser = JSON.parse(localStorage.getItem("registeredUser")) || null;
+let loggedInUser = JSON.parse(localStorage.getItem("loggedInUser")) || null;
+
+//Show dashboard if already logged in
+window.onload = () => {
+  if (loggedInUser) {
+    document.getElementById("username").innerText = loggedInUser.name;
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+  }
+};
+
+//REGISTER
+function register() {
+  const name = document.getElementById("usernameInput").value.trim();
+  const email = document.getElementById("emailInput").value.trim();
+  const password = document.getElementById("passwordInput").value.trim();
+
+  if (!name || !email || !password) {
+    alert("Please fill all fields to register!");
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert("Please enter a valid email address!");
+    return;
+  }
+
+  registeredUser = { name, email, password };
+  localStorage.setItem("registeredUser", JSON.stringify(registeredUser));
+  document.getElementById("successMsg").style.display = "block";
+
+  document.getElementById("usernameInput").value = "";
+  document.getElementById("emailInput").value = "";
+  document.getElementById("passwordInput").value = "";
+}
+
+//LOGIN
+function login() {
+  if (!registeredUser) {
+    alert("You must register first!");
+    return;
+  }
+  const email = document.getElementById("emailInput").value.trim();
+  const password = document.getElementById("passwordInput").value.trim();
+
+  if (email === registeredUser.email && password === registeredUser.password) {
+    loggedInUser = { ...registeredUser };
+    localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
+
+    document.getElementById("username").innerText = loggedInUser.name;
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    document.getElementById("successMsg").style.display = "none";
+
+    document.getElementById("emailInput").value = "";
+    document.getElementById("passwordInput").value = "";
+  } else {
+    alert("Incorrect email or password!");
+  }
+}
+
+//LOGOUT
+function logout() {
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("loginPage").style.display = "block";
+
+  document.getElementById("username").innerText = "";
+
+  document.getElementById("usernameInput").value = "";
+  document.getElementById("emailInput").value = "";
+  document.getElementById("passwordInput").value = "";
+
+  document.getElementById("successMsg").style.display = "none";
+
+  localStorage.removeItem("loggedInUser");
+  loggedInUser = null;
+}
+
+//PAGINATION
+function nextPage() { currentPage++; updatePageButtons(); }
+function prevPage() { if (currentPage > 1) { currentPage--; updatePageButtons(); } }
+function updatePageButtons() {
+  const pageNumbersDiv = document.getElementById("pageNumbers");
+  pageNumbersDiv.innerHTML = "";
+
+  for (let i = 1; i <= 2; i++) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary btn-sm";
+    btn.innerText = i;
+    if (i === currentPage) btn.classList.add("active");
+    btn.onclick = () => { currentPage = i; updatePageButtons(); };
+    pageNumbersDiv.appendChild(btn);
+  }
+}
+
+//PASSWORD TOGGLE
+function togglePassword() {
+  const passwordField = document.getElementById("passwordInput");
+  passwordField.type = passwordField.type === "password" ? "text" : "password";
+}
+
+//MOCK DATA
+const sampleBarData = [
+  { Diet_type: "Keto", "Protein(g)": 30, "Carbs(g)": 10, "Fat(g)": 25 },
+  { Diet_type: "Vegan", "Protein(g)": 20, "Carbs(g)": 40, "Fat(g)": 15 }
+];
+const samplePieData = { labels: ["Keto", "Vegan"], values: [10, 20] };
+const sampleScatterData = [
+  { x: 30, y: 10, diet: "Keto" },
+  { x: 20, y: 40, diet: "Vegan" }
+];
+
+//FILTER HELPERS
+function getSelectedDiet() { return document.getElementById("dietSelect").value; }
+function getSearchText() { return document.getElementById("dietFilter").value.trim().toLowerCase(); }
+
+function filterBarData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  return data.filter(d => (diet === "All Diet Types" || d.Diet_type === diet) &&
+  (search === "" || d.Diet_type.toLowerCase().includes(search)));
+}
+function filterPieData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  let filteredLabels = [], filteredValues = [];
+  data.labels.forEach((label, idx) => {
+    if ((diet === "All Diet Types" || label === diet) &&
+        (search === "" || label.toLowerCase().includes(search))) {
+      filteredLabels.push(label);
+      filteredValues.push(data.values[idx]);
+    }
+  });
+  return { labels: filteredLabels, values: filteredValues };
+}
+function filterScatterData(data) {
+  const diet = getSelectedDiet();
+  const search = getSearchText();
+  return data.filter(d => (diet === "All Diet Types" || d.diet === diet) &&
+  (search === "" || d.diet.toLowerCase().includes(search)));
+}
+
+//CHART RENDER
+function renderBar(data) {
+  const ctx = document.getElementById("barChart");
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.map(d => d.Diet_type),
+      datasets: [
+        { label: "Protein", data: data.map(d => d["Protein(g)"]), backgroundColor: "#007bff" },
+        { label: "Carbs", data: data.map(d => d["Carbs(g)"]), backgroundColor: "#28a745" },
+        { label: "Fat", data: data.map(d => d["Fat(g)"]), backgroundColor: "#ffc107" }
+      ]
+    },
+    options: { responsive: true }
+  });
+}
+function renderPie(data) {
+  const ctx = document.getElementById("pieChart");
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(ctx, {
+    type: "pie",
+    data: { labels: data.labels, datasets: [{ data: data.values, backgroundColor: ["#007bff","#28a745","#ffc107","#6f42c1"] }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+function renderScatter(data) {
+  const ctx = document.getElementById("scatterChart");
+  if (scatterChart) scatterChart.destroy();
+  scatterChart = new Chart(ctx, {
+    type: "scatter",
+    data: { datasets: [{ label: "Clusters", data: data, backgroundColor: "#6f42c1" }] },
+    options: {
+      responsive: true,
+      scales: { x: { title: { display: true, text: "Protein" } }, y: { title: { display: true, text: "Carbs" } } }
+    }
+  });
+}
+
+//BUTTON LISTENERS
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("insightsBtn").addEventListener("click", () => {
+    const data = filterBarData(sampleBarData);
+    renderBar(data);
+    document.getElementById("resultCount").innerText = data.length + " results found";
+  });
+
+  document.getElementById("recipesBtn").addEventListener("click", () => {
+    const data = filterPieData(samplePieData);
+    renderPie(data);
+    document.getElementById("resultCount").innerText = data.labels.length + " results found";
+  });
+
+  document.getElementById("clustersBtn").addEventListener("click", () => {
+    const data = filterScatterData(sampleScatterData);
+    renderScatter(data);
+    document.getElementById("resultCount").innerText = data.length + " results found";
+  });
+
+  //Initialize pagination buttons
+  updatePageButtons();
+});
+</script>
+</body>
+</html>
